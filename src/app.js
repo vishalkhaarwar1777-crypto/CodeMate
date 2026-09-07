@@ -5,19 +5,18 @@ dns.setServers(["8.8.8.8", "8.8.4.4"]);
 const express = require("express");
 const connectDB=require("./config/database");
 const app=express();
-const user=require("./models/user");
+const User=require("./models/user");
+const { runInNewContext } = require("vm");
+
+app.use(express.json());
 
 app.post("/signup", async(req,res) =>{
     // creating a new instances of usermodel.........
-    const newUser=new user({
-      firstName:"Rohit",
-      lastName:"sharma",
-      emailId:"sharna45@gmail.com",
-      password:"sharma@45",
-    });
+    const user=new User(req.body);
+   
 
     try{
-      await newUser.save();
+      await user.save();
       res.send("user added successfully")
     }catch(err){
       res.status(400).send("error saving the user" + err.message);
