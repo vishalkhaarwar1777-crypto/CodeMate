@@ -44,6 +44,16 @@ app.get("/feed", async(req,res)=>{
   }
 });
 
+app.delete("/user", async(req,res)=>{
+  const userId = req.body.userId;
+  try{
+    const user = await User.findByIdAndDelete(userId);
+    res.send("user deleted successfully");
+  }catch(err){
+    res.status(400).send("something went wrong");
+  }
+});
+
 connectDB()
 .then( ()=>{
   console.log("database connection is etablished...");
@@ -57,4 +67,3 @@ connectDB()
   console.error("database cannot be connected..");
   console.log(err);
 });
-
