@@ -22,7 +22,7 @@ app.post("/signup", async(req,res) =>{
 });
 // get user by eamil
 app.get("/user", async(req,res)=>{
-const userEmail = req.query.emailId;
+const userEmail = req.body.emailId;
   try{
     const users=await User.find({emailId:userEmail});
     if(users.length===0){
@@ -34,7 +34,7 @@ const userEmail = req.query.emailId;
     res.status(400).send("something went wrong");
   }
 });
-// feed app:get all user.......
+// feed api:get all user.......
 app.get("/feed", async(req,res)=>{
   try{
     const users= await User.find({});
