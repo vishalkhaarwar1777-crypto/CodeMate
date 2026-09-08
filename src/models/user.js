@@ -27,6 +27,10 @@ const userSchema=new mongoose.Schema({
     type:String,
     default: "default-profile.png"
   },
+  skill:{
+    type:[String],
+    default:[],
+  },
 },
 {
   timestamps:true,
