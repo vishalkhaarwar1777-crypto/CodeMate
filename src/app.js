@@ -22,7 +22,7 @@ app.post("/signup", async(req,res) =>{
 });
 // get user by eamil
 app.get("/user", async(req,res)=>{
-  const userEmail= req.body.emailId;
+const userEmail = req.query.emailId;
   try{
     const users=await User.find({emailId:userEmail});
     if(users.length===0){
@@ -53,6 +53,17 @@ app.delete("/user", async(req,res)=>{
     res.status(400).send("something went wrong");
   }
 });
+
+app.patch("/user",async(req,res)=>{
+ const { userId, ...data } = req.body;
+  try{
+    await User.findByIdAndUpdate(userId,data);
+    res.send("user are updated")
+  }catch(err){
+    res.status(400).send("something went wrong")
+  
+  }
+})
 
 connectDB()
 .then( ()=>{
