@@ -5,6 +5,8 @@ const userSchema=new mongoose.Schema({
   firstName:{
     type:String,
     required:true,
+    minlength:4,
+    maxlength:50
   },
   lastName:{
     type:String,
@@ -39,14 +41,17 @@ const userSchema=new mongoose.Schema({
       if(!validator.isURL(value)){
          throw new error("Invalid photo URL"+value);
       }
-  },
+  }
+},
   skill:{
     type:[String],
     default:[],
   },
 },
+
 {
   timestamps:true,
-});
+}
+);
 
 module.exports=mongoose.model("user" ,userSchema);

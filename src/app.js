@@ -7,17 +7,29 @@ const connectDB=require("./config/database");
 const app=express();
 const { runInNewContext } = require("vm");
 const User = require("./models/user");
+const{validateSignupData}=require("./utils/validation");
+const bcrypt=require("bcrypt");
 
 app.use(express.json());
 
 app.post("/signup", async(req,res) =>{
-    // creating a new instances of usermodel.........
-    const user=new User(req.body);
+    // Data validation....
     try{
+    validateSignupData(req);
+    const{firstName,lastName,emailId,password}=req.body;
+    //password encryption...
+    const hashedPassword=await bcrypt.hash(password,10);
+    // creating a new instances of usermodel.........
+    const user=new User({
+      firstName,
+      lastName,
+      emailId,
+      password:hashedPassword,
+    });
       await user.save();
       res.send("user added successfully")
     }catch(err){
-      res.status(400).send("error saving the user" + err.message);
+      res.status(400).send("Error: " + err.message);
     }
 });
 // get user by eamil
@@ -55,7 +67,8 @@ app.delete("/user", async(req,res)=>{
 });
 
 app.patch("/user/:userId",async(req,res)=>{
- const { userId, ...data } = req.params?.userId;
+const { userId } = req.params;
+const data = req.body;
   try{
     const allowedUpdate=["profilePhoto","gender","age","skill"];
 
