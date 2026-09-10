@@ -9,9 +9,13 @@ const { runInNewContext } = require("vm");
 const User = require("./models/user");
 const{validateSignupData}=require("./utils/validation");
 const bcrypt=require("bcrypt");
+const cookieParser =require("cookie-parser");
+const jwt=require("jsonwebtoken");
+const { userAuth } = require("./middleware/auth");
 
+//middleware..
 app.use(express.json());
-
+app.use(cookieParser());
 app.post("/signup", async(req,res) =>{
     // Data validation....
     try{
@@ -32,6 +36,43 @@ app.post("/signup", async(req,res) =>{
       res.status(400).send("Error: " + err.message);
     }
 });
+
+app.post("/login", async(req,res)=>{
+  try{
+    const{emailId,password}=req.body;
+    const user=await User.findOne({emailId:emailId});
+    if(!user){
+      throw new Error("Invalid credentials");
+    }
+    const isPasswordValid=await user.isvalidPassword(password);
+    if(isPasswordValid){
+      // create jwt token
+      const token= await user.getJWT();
+
+      // add the token to the cookie and seending response back to user.....
+       res.cookie("token",token);
+
+      res.send("Login successfully..");
+    }else{
+      throw new Error("Invalid credentials");
+    }
+  }catch(err){
+    res.status(400).send("ERROR:"+err.message);
+  }
+});
+
+app.get("/profile",userAuth,async(req,res)=>{
+ try{ 
+  const user=req.user;
+  res.send(user);
+  }catch(err){
+    res.status(400).send("ERROR:"+err.message);
+  }
+});
+
+app.post("/sendConnectionRequest", async (req,res)=>{
+     res.send("connection request send")
+})
 // get user by eamil
 app.get("/user", async(req,res)=>{
 const userEmail = req.body.emailId;
