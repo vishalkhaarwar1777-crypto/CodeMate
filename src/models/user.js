@@ -32,6 +32,12 @@ const userSchema=new mongoose.Schema({
     type:String,
     required:true,
   },
+  gender:{
+    type:String,
+    enum:{
+      values:["male","female","other"],
+    }
+  },
   about:{
     type:String,
     default:"Hey ! I am here to using devTinder"

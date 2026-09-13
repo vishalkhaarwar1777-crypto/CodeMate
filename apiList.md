@@ -19,3 +19,5 @@
 -GET/user/connections
 -GET/user/requests
 -GET/user/feed - gets you the profile of ther users on platfoem
+
+#status: ignore,interested, accepted and rejected...
