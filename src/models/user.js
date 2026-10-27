@@ -44,7 +44,7 @@ const userSchema=new mongoose.Schema({
   },
   profilePhoto:{
     type:String,
-    default: "default-profile.png",
+    default: "https://placehold.co/100x100?text=User",
       validate(value){
       if(!validator.isURL(value)){
          throw new error("Invalid photo URL"+value);
