@@ -19,4 +19,10 @@
 -GET/user/connections
 -GET/user/feed - gets you the profile of ther users on platfoem
 
+#messageRouter
+-GET/user/messages/:userId?page=1&limit=30
+-POST/user/messages/:userId {text}
+-POST/user/messages/:userId/read
+-GET/user/messages - total unread count
+
 #status: ignore,interested, accepted and rejected...

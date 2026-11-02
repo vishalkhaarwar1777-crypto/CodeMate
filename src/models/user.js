@@ -1,78 +1,85 @@
-const mongoose=require("mongoose");
-const validator=require("validator");
-const bcrypt=require("bcrypt")
-const jwt=require("jsonwebtoken");
+const mongoose = require("mongoose");
+const validator = require("validator");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
-const userSchema=new mongoose.Schema({
-  firstName:{
-    type:String,
-    required:true,
-    minlength:4,
-    maxlength:50
+const userSchema = new mongoose.Schema(
+  {
+    firstName: {
+      type: String,
+      required: true,
+      minlength: 4,
+      maxlength: 50,
+    },
+
+    lastName: {
+      type: String,
+    },
+
+    emailId: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+      validate(value) {
+        if (!validator.isEmail(value)) {
+          throw new Error("Invalid email address: " + value);
+        }
+      },
+    },
+
+    age: {
+      type: Number,
+      min: 18,
+      max: 120,
+    },
+
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+    },
+
+    password: {
+      type: String,
+      required: true,
+    },
+
+    about: {
+      type: String,
+      default: "Hey! I am here to use DevTinder.",
+    },
+
+    profilePhoto: {
+      type: String,
+      default: "https://placehold.co/100x100?text=User",
+      validate(value) {
+        if (value && !validator.isURL(value)) {
+          throw new Error("Invalid photo URL: " + value);
+        }
+      },
+    },
+
+    skill: {
+      type: [String],
+      default: [],
+    },
   },
-  lastName:{
-    type:String,
-  },
-  emailId:{
-    type:String,
-    required:true,
-    unique:true,
-    lowercase:true,
-    trim:true,
-    validate(value){
-      if(!validator.isEmail(value)){
-         throw new error("Invalid email addrees"+value);
-      }
-    }
-  },
-  age:{
-       type:Number,
-  },
-  password:{
-    type:String,
-    required:true,
-  },
-  gender:{
-    type:String,
-    enum:{
-      values:["male","female","other"],
-    }
-  },
-  about:{
-    type:String,
-    default:"Hey ! I am here to using devTinder"
-  },
-  profilePhoto:{
-    type:String,
-    default: "https://placehold.co/100x100?text=User",
-      validate(value){
-      if(!validator.isURL(value)){
-         throw new error("Invalid photo URL"+value);
-      }
+  {
+    timestamps: true,
   }
-},
-  skill:{
-    type:[String],
-    default:[],
-  },
-},
-
-{
-  timestamps:true,
-}
 );
-userSchema.methods.getJWT=async function(){
-  const user=this;
-  const token= await jwt.sign({_id:user._id},"dev@Tinder$1777",{ expiresIn: "1d" });
-  return token;
+
+userSchema.methods.getJWT = async function () {
+  return jwt.sign(
+    { _id: this._id },
+    process.env.JWT_SECRET || "dev@Tinder$1777",
+    { expiresIn: "1d" }
+  );
 };
 
-userSchema.methods.isvalidPassword=async function(passwordInputByYSer){
-     const user=this;
-     const passwordHash=user.password;
-
-    const isvalidPassword = await bcrypt.compare(passwordInputByYSer,passwordHash);
-    return isvalidPassword;
+userSchema.methods.isvalidPassword = async function (passwordInputByUser) {
+  return bcrypt.compare(passwordInputByUser, this.password);
 };
 
-module.exports=mongoose.model("user" ,userSchema);
+module.exports = mongoose.model("user", userSchema);

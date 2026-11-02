@@ -72,7 +72,7 @@ userRouter.get("/feed",userAuth,async(req,res)=>{
     const users=await User.find({
       $and:[
          {_id:{$nin:Array.from(hideUserFromFeed)}},
-         {_id:{$ne:loggedInUser._Id}},
+         {_id:{$ne:loggedInUser._id}},
       ],
     }).select(USER_SAFE_DATA)
        .skip((page - 1) * limit)
