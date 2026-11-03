@@ -1,11 +1,12 @@
 const express = require("express");
 const userRouter = express.Router();
 const { userAuth } = require("../middleware/auth");
-const User= require("../models/user");
-
-const USER_SAFE_DATA = "firstName lastName gender about skill profilePhoto";
-
+const User = require("../models/user");
 const ConnectionRequest = require("../models/connectionRequest");
+
+// Only public profile fields. Never expose password or emailId in the feed.
+const USER_SAFE_DATA =
+  "firstName lastName age gender about skill profilePhoto createdAt";
 
 userRouter.get("/user/requests/received", userAuth, async (req, res) => {
   try {
@@ -14,73 +15,89 @@ userRouter.get("/user/requests/received", userAuth, async (req, res) => {
     const connectionRequests = await ConnectionRequest.find({
       toUserId: loggedInUser._id,
       status: "interested",
-    }).populate("fromUserId",USER_SAFE_DATA);
+    }).populate("fromUserId", USER_SAFE_DATA);
 
     res.json({
       message: "Received connection requests",
       data: connectionRequests,
     });
-
   } catch (err) {
-    res.status(400).send("ERROR: " + err.message);
+    res.status(500).json({ message: "Could not load connection requests." });
   }
 });
 
-userRouter.get("/user/connection",userAuth,async(req,res)=>{
-  try{
-  const loggedInUser=req.user;
-  const connectionRequest= await ConnectionRequest.find({
-    $or:[
-      {toUserId:loggedInUser._id, status:"accepted"},
-      {fromUserId:loggedInUser._id, status:"accepted"},
-    ],
-  }).populate("fromUserId",USER_SAFE_DATA)
-  .populate("toUserId",USER_SAFE_DATA);
-  const data=connectionRequest.map((row)=>{
-    if(row.fromUserId._id.toString()===loggedInUser._id.toString()){
-      return row.toUserId;
-    }
-    return row.fromUserId;
-  });
-     
-  res.json({data});
-  }catch(err){
-     res.status(400).send("ERROR :"+err.message);
-  }
-});
+userRouter.get("/user/connection", userAuth, async (req, res) => {
+  try {
+    const loggedInUser = req.user;
 
-userRouter.get("/feed",userAuth,async(req,res)=>{
-  try{
-    const loggedInUser=req.user;
-
-    const page = parseInt(req.query.page) || 1;
-    let limit = parseInt(req.query.limit) || 10;
-    limit=limit>50?50:limit;
-
-    const connectionRquests=await ConnectionRequest.find({
-      $or:[
-        {fromUserId:loggedInUser._id},{toUserId:loggedInUser._id}
+    const connectionRequests = await ConnectionRequest.find({
+      $or: [
+        { toUserId: loggedInUser._id, status: "accepted" },
+        { fromUserId: loggedInUser._id, status: "accepted" },
       ],
-    }).select("fromUserId toUserId");
+    })
+      .populate("fromUserId", USER_SAFE_DATA)
+      .populate("toUserId", USER_SAFE_DATA);
 
-    const hideUserFromFeed=new Set();
-    connectionRquests.forEach((req)=>{
-      hideUserFromFeed.add(req.fromUserId.toString());
-      hideUserFromFeed.add(req.toUserId.toString());
+    const data = connectionRequests
+      .map((row) => {
+        if (!row.fromUserId || !row.toUserId) return null;
+
+        if (row.fromUserId._id.toString() === loggedInUser._id.toString()) {
+          return row.toUserId;
+        }
+
+        return row.fromUserId;
+      })
+      .filter(Boolean);
+
+    res.json({ data });
+  } catch (err) {
+    res.status(500).json({ message: "Could not load your connections." });
+  }
+});
+
+userRouter.get("/feed", userAuth, async (req, res) => {
+  try {
+    const loggedInUser = req.user;
+
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const requestedLimit = parseInt(req.query.limit, 10) || 10;
+    const limit = Math.min(50, Math.max(1, requestedLimit));
+
+    // Every request in either direction (sent or received, any status) means
+    // the two people already interacted, so hide those profiles.
+    const connectionRequests = await ConnectionRequest.find({
+      $or: [
+        { fromUserId: loggedInUser._id },
+        { toUserId: loggedInUser._id },
+      ],
+    })
+      .select("fromUserId toUserId")
+      .lean();
+
+    const hiddenUserIds = new Set([loggedInUser._id.toString()]);
+
+    connectionRequests.forEach((row) => {
+      if (row.fromUserId) hiddenUserIds.add(row.fromUserId.toString());
+      if (row.toUserId) hiddenUserIds.add(row.toUserId.toString());
     });
 
-    const users=await User.find({
-      $and:[
-         {_id:{$nin:Array.from(hideUserFromFeed)}},
-         {_id:{$ne:loggedInUser._id}},
-      ],
-    }).select(USER_SAFE_DATA)
-       .skip((page - 1) * limit)
-      .limit(limit);
-      res.send(users);
-  }catch(err){
-    res.status(400).send("ERROR :"+err.message)
+    const users = await User.find({
+      _id: { $nin: Array.from(hiddenUserIds) },
+    })
+      .select(USER_SAFE_DATA)
+      // A stable sort keeps pagination consistent between requests.
+      .sort({ createdAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    // An empty feed is a valid result: respond with [] and HTTP 200.
+    return res.json(users);
+  } catch (err) {
+    return res.status(500).json({ message: "Could not load the feed." });
   }
-})
+});
 
 module.exports = userRouter;

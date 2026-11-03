@@ -71,11 +71,13 @@ const userSchema = new mongoose.Schema(
 );
 
 userSchema.methods.getJWT = async function () {
-  return jwt.sign(
-    { _id: this._id },
-    process.env.JWT_SECRET || "dev@Tinder$1777",
-    { expiresIn: "1d" }
-  );
+  const secret = process.env.JWT_SECRET;
+
+  if (!secret) {
+    throw new Error("JWT_SECRET is not configured");
+  }
+
+  return jwt.sign({ _id: this._id.toString() }, secret, { expiresIn: "1d" });
 };
 
 userSchema.methods.isvalidPassword = async function (passwordInputByUser) {

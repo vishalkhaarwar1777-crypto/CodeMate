@@ -1,9 +1,10 @@
-
 const express = require("express");
 const authRouter = express.Router();
 const { validateSignupData } = require("../utils/validation");
 const User = require("../models/user");
 const bcrypt = require("bcrypt");
+const { setAuthCookie, clearAuthCookie } = require("../utils/cookie");
+const { toPublicUser } = require("../utils/publicUser");
 
 authRouter.post("/signup", async (req, res) => {
   try {
@@ -24,6 +25,7 @@ authRouter.post("/signup", async (req, res) => {
 
     res.status(201).json({
       message: "User added successfully",
+      user: toPublicUser(user),
     });
   } catch (err) {
     res.status(400).json({
@@ -34,58 +36,49 @@ authRouter.post("/signup", async (req, res) => {
 
 authRouter.post("/login", async (req, res) => {
   try {
-    const { emailId, password } = req.body;
+    const emailId =
+      typeof req.body.emailId === "string"
+        ? req.body.emailId.trim().toLowerCase()
+        : "";
+    const password =
+      typeof req.body.password === "string" ? req.body.password : "";
+
+    if (!emailId || !password) {
+      return res
+        .status(400)
+        .json({ message: "Email and password are required." });
+    }
 
     const user = await User.findOne({ emailId });
 
     if (!user) {
-      return res.status(400).json({
-        error: "Invalid credentials",
-      });
+      return res.status(401).json({ message: "Invalid email or password." });
     }
 
     const isPasswordValid = await user.isvalidPassword(password);
 
     if (!isPasswordValid) {
-      return res.status(400).json({
-        error: "Invalid credentials",
-      });
+      return res.status(401).json({ message: "Invalid email or password." });
     }
 
     const token = await user.getJWT();
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-    });
+    setAuthCookie(res, req, token);
 
-    res.json({
+    return res.json({
       message: "Login successful",
-      user: {
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        emailId: user.emailId,
-        photoUrl: user.photoUrl,
-        age: user.age,
-        gender: user.gender,
-        about: user.about,
-        skills: user.skills,
-      },
+      user: toPublicUser(user),
     });
   } catch (err) {
-    res.status(400).json({
-      error: err.message,
-    });
+    console.error("Login failed:", err.message);
+    return res
+      .status(500)
+      .json({ message: "Could not sign you in. Please try again." });
   }
 });
 
 authRouter.post("/logout", (req, res) => {
-  res.cookie("token", null, {
-    expires: new Date(Date.now()),
-    httpOnly: true,
-  });
+  clearAuthCookie(res, req);
 
   res.json({
     message: "Logout successful",

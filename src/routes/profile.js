@@ -1,22 +1,23 @@
-
 const express = require("express");
 const profileRouter = express.Router();
 const { userAuth } = require("../middleware/auth");
 const { validateEditprofileData } = require("../utils/validation");
+const { toPublicUser } = require("../utils/publicUser");
 
 // View profile
 profileRouter.get("/profile/view", userAuth, async (req, res) => {
   try {
-    res.json(req.user);
+    // Never send the Mongoose document directly: it contains the password hash.
+    res.json(toPublicUser(req.user));
   } catch (err) {
-    res.status(400).send("ERROR: " + err.message);
+    res.status(400).json({ message: "Could not load your profile." });
   }
 });
 
 profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
   try {
     if (!validateEditprofileData(req)) {
-      return res.status(400).send("Invalid edit request!");
+      return res.status(400).json({ message: "Invalid edit request!" });
     }
 
     const loggedInUser = req.user;
@@ -29,10 +30,10 @@ profileRouter.patch("/profile/edit", userAuth, async (req, res) => {
 
     res.json({
       message: "Profile updated successfully!",
-      data: loggedInUser,
+      data: toPublicUser(loggedInUser),
     });
   } catch (err) {
-    res.status(400).send("ERROR: " + err.message);
+    res.status(400).json({ message: err.message });
   }
 });
 
