@@ -1,3 +1,4 @@
+
 const dns = require("dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
@@ -5,8 +6,10 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
+
 const connectDB = require("./config/database");
 const { createHttpError, toHttpError } = require("./utils/errors");
+
 require("dotenv").config({ quiet: true });
 
 // Check required environment variables
@@ -34,7 +37,7 @@ const normalizeOrigin = (value) => value.trim().replace(/\/+$/, "");
 // Allowed frontend origins
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://codemates-connect.vercel.app",
+  "https://codemates-k4buyidm8-code-mates1.vercel.app",
   ...(process.env.FRONTEND_URL || "").split(","),
 ]
   .filter(Boolean)
@@ -48,12 +51,30 @@ app.use(
         return callback(null, true);
       }
 
-      // Reject with a client error (403) instead of a generic 500.
-      return callback(createHttpError(403, "Origin not allowed by CORS."));
+      console.error("Blocked CORS origin:", origin);
+
+      return callback(
+        createHttpError(403, "Origin not allowed by CORS.")
+      );
     },
+
     credentials: true,
-    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+
+    methods: [
+      "GET",
+      "HEAD",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
+
     optionsSuccessStatus: 204,
   })
 );
@@ -82,7 +103,9 @@ app.use("/", userRouter);
 
 // 404 handler
 app.use((req, res) => {
-  res.status(404).json({ message: "Route not found." });
+  res.status(404).json({
+    message: "Route not found.",
+  });
 });
 
 // Error handler
@@ -92,20 +115,21 @@ app.use((err, req, res, next) => {
   const error = toHttpError(err);
 
   if (error.status >= 500) {
-    // Log the original error (with stack) for Render logs, but never send it.
     console.error("API error:", err);
   }
 
-  res.status(error.status).json({ message: error.message });
+  res.status(error.status).json({
+    message: error.message,
+  });
 });
 
+// Start server
 const startServer = () => {
   const server = app.listen(process.env.PORT || 3000, () => {
     console.log("Server is successfully listening");
   });
 
-  // Render sends SIGTERM on redeploy. Close connections instead of being
-  // killed mid-request.
+  // Graceful shutdown
   const shutdown = (signal) => {
     console.log(`${signal} received, shutting down...`);
 
@@ -113,7 +137,6 @@ const startServer = () => {
       mongoose.connection.close(false).finally(() => process.exit(0));
     });
 
-    // Do not hang forever if a connection refuses to close.
     setTimeout(() => process.exit(1), 10000).unref();
   };
 
@@ -123,6 +146,7 @@ const startServer = () => {
   return server;
 };
 
+// Handle unhandled promise rejections
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled promise rejection:", reason);
 });
