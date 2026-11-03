@@ -20,9 +20,17 @@ const connectionRequestSchema = new mongoose.Schema(
         message: `{VALUE} is incorrect status type`,
       },
     },
+    // Canonical "smallerId:largerId" key. A unique index on this field makes
+    // duplicate requests impossible even when two requests race, regardless of
+    // which direction they were sent in.
+    pairKey: {
+      type: String,
+      select: false,
+    },
   },
   {
     timestamps: true,
+    versionKey: false,
   }
 );
 
@@ -31,6 +39,24 @@ const connectionRequestSchema = new mongoose.Schema(
 connectionRequestSchema.index({ fromUserId: 1, toUserId: 1 });
 connectionRequestSchema.index({ toUserId: 1, status: 1 });
 connectionRequestSchema.index({ fromUserId: 1, status: 1 });
+connectionRequestSchema.index({ pairKey: 1 }, { unique: true, sparse: true });
+
+// Compute the pair key before validation so it is present on every save.
+// Sparse keeps the index usable while older documents are backfilled.
+connectionRequestSchema.pre("validate", function () {
+  if (!this.fromUserId || !this.toUserId) return;
+
+  const ids = [this.fromUserId.toString(), this.toUserId.toString()].sort();
+  this.pairKey = ids.join(":");
+});
+
+// pairKey is an internal implementation detail.
+connectionRequestSchema.set("toJSON", {
+  transform: (_doc, ret) => {
+    delete ret.pairKey;
+    return ret;
+  },
+});
 
 // A user cannot send a request to themselves. This is a second line of
 // defence: the route also rejects it before touching the database.

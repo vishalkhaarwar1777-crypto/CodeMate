@@ -2,7 +2,7 @@
 // exercised with invalid input, so no users/requests/messages are created.
 // Usage: npm run test:smoke   (BASE=https://... to target another server)
 const BASE = process.env.BASE || "http://localhost:3000";
-const ORIGIN = "https://codemates-connect.vercel.app";
+const ORIGIN = process.env.ORIGIN || "https://codemates-connect.vercel.app";
 
 const results = [];
 const check = (name, ok, detail = "") => {
@@ -47,6 +47,11 @@ await waitUp();
 let r = await req("/");
 check("GET / returns 200 text", r.status === 200 && r.body.includes("running"));
 check("x-powered-by is disabled", !r.headers.get("x-powered-by"));
+check(
+  "security headers present",
+  r.headers.get("x-content-type-options") === "nosniff" &&
+    !!r.headers.get("x-frame-options")
+);
 
 r = await req("/definitely-not-a-route");
 check(
@@ -72,7 +77,17 @@ for (const [name, path, init] of [
 
 // --- login / signup validation ---------------------------------------------
 r = await req("/login", jsonPost({}));
-check("login without body -> 400", r.status === 400 && r.body.message);
+check("login with empty object -> 400", r.status === 400 && r.body.message);
+
+r = await req("/login", { method: "POST", headers: { Origin: ORIGIN } });
+check("login without any body -> 400 (not 500)", r.status === 400, `${r.status}`);
+
+r = await req("/login", {
+  method: "POST",
+  headers: { "Content-Type": "text/plain", Origin: ORIGIN },
+  body: "hello",
+});
+check("login with non-JSON body -> 400 (not 500)", r.status === 400, `${r.status}`);
 
 r = await req("/login", jsonPost({ emailId: "nobody-here-xyz@example.com", password: "irrelevant123" }));
 check(

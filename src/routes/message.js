@@ -8,6 +8,7 @@ const ConnectionRequest = require("../models/connectionRequest");
 const MAX_MESSAGE_LENGTH = 2000;
 const DEFAULT_PAGE_SIZE = 30;
 const MAX_PAGE_SIZE = 100;
+const MAX_PAGE = 1000;
 
 /**
  * Conversations are addressed by the other developer's id, which is what the
@@ -28,7 +29,10 @@ async function findAcceptedConnection(otherUserId, userId) {
 }
 
 function parsePaging(query) {
-  const page = Math.max(1, parseInt(query.page, 10) || 1);
+  const page = Math.min(
+    MAX_PAGE,
+    Math.max(1, parseInt(query.page, 10) || 1)
+  );
   const requestedLimit = parseInt(query.limit, 10) || DEFAULT_PAGE_SIZE;
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, requestedLimit));
 
@@ -36,7 +40,8 @@ function parsePaging(query) {
 }
 
 // GET /user/messages/:userId?page=1&limit=30
-// Returns the newest page, oldest-first, so the client can append directly.
+// Returns the newest page oldest-first. Later pages contain older messages, so
+// the client must prepend them above the messages it already has.
 messageRouter.get("/user/messages/:userId", userAuth, async (req, res, next) => {
   try {
     const connection = await findAcceptedConnection(
@@ -53,7 +58,8 @@ messageRouter.get("/user/messages/:userId", userAuth, async (req, res, next) => 
     const { page, limit } = parsePaging(req.query);
 
     const rows = await Message.find({ connectionId: connection._id })
-      .sort({ createdAt: -1 })
+      .select("-__v")
+      .sort({ createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit + 1)
       .lean();

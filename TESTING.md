@@ -6,8 +6,8 @@ checklist for the authenticated flows.
 ## 1. Automated (run these first)
 
 ```bash
-npm test          # 28 unit checks: validation, error mapping, cookies, JWT
-npm run test:smoke  # 26 HTTP checks against a running server (read-only)
+npm test          # 36 unit checks: validation, error mapping, cookies, JWT, schemas
+npm run test:smoke  # 29 HTTP checks against a running server (read-only)
 ```
 
 `test:smoke` expects the API on `http://localhost:3000`. Point it elsewhere with:
@@ -16,10 +16,14 @@ npm run test:smoke  # 26 HTTP checks against a running server (read-only)
 $env:BASE="https://codemate-wn1u.onrender.com"; npm run test:smoke
 ```
 
-The smoke suite covers: health, 404, every protected route without a cookie,
-login/signup validation failures, malformed JSON, CORS preflight for Vercel and
-localhost, blocked-origin rejection, and logout cookie clearing. It never
-creates a user, request or message.
+The smoke suite covers: health, security headers, 404, every protected route
+without a cookie, login/signup validation failures (including missing and
+non-JSON bodies), malformed JSON, CORS preflight for Vercel and localhost,
+blocked-origin rejection, and logout cookie clearing. It never creates a user,
+request or message.
+
+`cookies.txt` (created by the manual steps below) is gitignored so a token is
+never committed by accident.
 
 ## 2. Manual: authentication
 
@@ -36,7 +40,7 @@ curl.exe -i -X POST http://localhost:3000/signup `
 - [ ] `201` and `{ "message", "user" }`, with no `password` key
 - [ ] Repeating the same email returns `409` with "already exists"
 - [ ] Password under 8 characters returns `400`
-- [ ] Password over 72 characters returns `400`
+- [ ] Password over 72 bytes returns `400` (bcrypt truncates at 72 bytes)
 - [ ] `emailId` sent as an object/array returns `400` (never a Mongo operator)
 
 ### Login
@@ -51,6 +55,8 @@ curl.exe -i -c cookies.txt -X POST http://localhost:3000/login `
 - [ ] `Set-Cookie: token=...; HttpOnly; Path=/; SameSite=Lax` locally
 - [ ] On Render (`NODE_ENV=production` or `RENDER=true`): `Secure; SameSite=None`
 - [ ] Wrong password and unknown email both return `401` with the same message
+- [ ] A request with no body or a `text/plain` body returns `400`, never `500`
+- [ ] More than 30 login/signup attempts in 15 minutes returns `429`
 
 Browser check (production):
 
@@ -143,6 +149,8 @@ Only after a request is accepted.
 | 403 | CORS origin blocked |
 | 404 | route or resource not found |
 | 409 | duplicate email or duplicate connection request |
+| 413 | request body is larger than 100 KB |
+| 429 | too many authentication attempts (rate limit) |
 | 500 | unexpected server error (generic message only) |
 
 ## 7. Not yet tested

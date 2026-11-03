@@ -1,11 +1,8 @@
-
-const dns = require("dns");
-dns.setServers(["8.8.8.8", "8.8.4.4"]);
-
 const express = require("express");
 const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
+const helmet = require("helmet");
 
 const connectDB = require("./config/database");
 const { createHttpError, toHttpError } = require("./utils/errors");
@@ -34,14 +31,24 @@ app.disable("x-powered-by");
 // Normalize frontend URLs
 const normalizeOrigin = (value) => value.trim().replace(/\/+$/, "");
 
+// Stable origins that should always work. Add deployment-specific origins via
+// FRONTEND_URL (comma separated) instead of hardcoding preview URLs here.
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://localhost:5173",
+  "https://codemates-connect.vercel.app",
+];
+
 // Allowed frontend origins
 const allowedOrigins = [
-  "http://localhost:5173",
-  "https://codemates-k4buyidm8-code-mates1.vercel.app",
-  ...(process.env.FRONTEND_URL || "").split(","),
-]
-  .filter(Boolean)
-  .map(normalizeOrigin);
+  ...new Set(
+    [...DEFAULT_ALLOWED_ORIGINS, ...(process.env.FRONTEND_URL || "").split(",")]
+      .filter(Boolean)
+      .map(normalizeOrigin)
+  ),
+];
+
+// Security headers (HSTS, nosniff, frame options, referrer policy, ...)
+app.use(helmet());
 
 // CORS configuration
 app.use(
@@ -125,8 +132,17 @@ app.use((err, req, res, next) => {
 
 // Start server
 const startServer = () => {
-  const server = app.listen(process.env.PORT || 3000, () => {
-    console.log("Server is successfully listening");
+  const port = process.env.PORT || 3000;
+
+  const server = app.listen(port, () => {
+    console.log(`Server is successfully listening on port ${port}`);
+  });
+
+  // Report startup failures (for example EADDRINUSE) instead of crashing with
+  // an unhandled "error" event.
+  server.on("error", (err) => {
+    console.error("Server failed to start:", err.message);
+    process.exit(1);
   });
 
   // Graceful shutdown
@@ -146,9 +162,11 @@ const startServer = () => {
   return server;
 };
 
-// Handle unhandled promise rejections
+// An unhandled rejection means the process is in an unknown state. Log it and
+// exit so the supervisor can restart a clean instance.
 process.on("unhandledRejection", (reason) => {
   console.error("Unhandled promise rejection:", reason);
+  process.exit(1);
 });
 
 // Connect database and start server

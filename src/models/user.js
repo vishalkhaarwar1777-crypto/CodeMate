@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema(
 
     lastName: {
       type: String,
+      required: true,
       trim: true,
       maxlength: 50,
     },
@@ -75,6 +76,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    versionKey: false,
   }
 );
 

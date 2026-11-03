@@ -3,8 +3,12 @@
 Base URL (production): `https://codemate-wn1u.onrender.com`
 Base URL (local): `http://localhost:3000`
 
-Every route except `POST /signup` and `POST /login` requires the HTTP-only
-`token` cookie set at login. Requests must be sent with credentials enabled.
+Public routes: `GET /` (health), `POST /signup`, `POST /login` and `POST /logout`.
+Every other route requires the HTTP-only `token` cookie set at login. Requests
+must be sent with credentials enabled.
+
+`POST /login` and `POST /signup` are rate limited per IP (30 attempts per 15
+minutes).
 
 ## Auth (`src/routes/auth.js`)
 
@@ -46,7 +50,7 @@ A conversation exists only between two users with an accepted request.
 
 | Method | Path                            | Notes                                      |
 | ------ | ------------------------------- | ------------------------------------------ |
-| GET    | `/user/messages/:userId`        | Thread, `?page=1&limit=30`, oldest-first   |
+| GET    | `/user/messages/:userId`        | Thread, `?page=1&limit=30`, oldest-first; prepend older pages |
 | POST   | `/user/messages/:userId`        | Body: `{ text }` (max 2000 chars)          |
 | POST   | `/user/messages/:userId/read`   | Marks incoming messages as read            |
 | GET    | `/user/messages`                | `{ unread }` total across conversations    |
@@ -64,4 +68,6 @@ A conversation exists only between two users with an accepted request.
 - `403` blocked CORS origin
 - `404` route/resource not found
 - `409` duplicate email or duplicate connection request
+- `413` request body too large (100 KB limit)
+- `429` too many login/signup attempts (rate limit)
 - `500` unexpected server error (generic message, details stay in logs)

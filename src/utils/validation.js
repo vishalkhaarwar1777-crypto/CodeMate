@@ -6,9 +6,10 @@ const FIRST_NAME_MAX = 50;
 const LAST_NAME_MAX = 50;
 const EMAIL_MAX = 254;
 // bcrypt only uses the first 72 bytes of a password, so a longer password
-// would silently be truncated (and a shorter one would still match).
+// would silently be truncated (and a shorter one would still match). Measure
+// bytes, not characters: emoji and other non-ASCII input use multiple bytes.
 const PASSWORD_MIN = 8;
-const PASSWORD_MAX = 72;
+const PASSWORD_MAX_BYTES = 72;
 const ABOUT_MAX = 1000;
 const PHOTO_URL_MAX = 2048;
 const MAX_SKILLS = 20;
@@ -35,6 +36,10 @@ const asTrimmedString = (value) => (typeof value === "string" ? value.trim() : "
  * message so the shared error handler can respond consistently.
  */
 const validateSignupData = (body = {}) => {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw createHttpError(400, "Request body must be a JSON object.");
+  }
+
   const firstName = asTrimmedString(body.firstName);
   const lastName = asTrimmedString(body.lastName);
   const emailId = asTrimmedString(body.emailId);
@@ -73,10 +78,10 @@ const validateSignupData = (body = {}) => {
     );
   }
 
-  if (password.length > PASSWORD_MAX) {
+  if (Buffer.byteLength(password, "utf8") > PASSWORD_MAX_BYTES) {
     throw createHttpError(
       400,
-      `Password cannot be longer than ${PASSWORD_MAX} characters.`
+      `Password cannot be longer than ${PASSWORD_MAX_BYTES} bytes.`
     );
   }
 };
@@ -129,6 +134,10 @@ const validateEditProfileData = (body) => {
     }
 
     const lastName = body.lastName.trim();
+
+    if (!lastName) {
+      throw createHttpError(400, "Last name is required.");
+    }
 
     if (lastName.length > LAST_NAME_MAX) {
       throw createHttpError(

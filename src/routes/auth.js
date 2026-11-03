@@ -5,8 +5,9 @@ const { validateSignupData } = require("../utils/validation");
 const User = require("../models/user");
 const { setAuthCookie, clearAuthCookie } = require("../utils/cookie");
 const { toPublicUser } = require("../utils/publicUser");
+const { authLimiter } = require("../middleware/rateLimit");
 
-authRouter.post("/signup", async (req, res, next) => {
+authRouter.post("/signup", authLimiter, async (req, res, next) => {
   try {
     validateSignupData(req.body);
 
@@ -33,14 +34,16 @@ authRouter.post("/signup", async (req, res, next) => {
   }
 });
 
-authRouter.post("/login", async (req, res, next) => {
+authRouter.post("/login", authLimiter, async (req, res, next) => {
   try {
+    // body-parser leaves req.body undefined when the request has no body (or a
+    // non-JSON content type), so never read fields from it directly.
+    const body = req.body && typeof req.body === "object" ? req.body : {};
     const emailId =
-      typeof req.body.emailId === "string"
-        ? req.body.emailId.trim().toLowerCase()
+      typeof body.emailId === "string"
+        ? body.emailId.trim().toLowerCase()
         : "";
-    const password =
-      typeof req.body.password === "string" ? req.body.password : "";
+    const password = typeof body.password === "string" ? body.password : "";
 
     if (!emailId || !password) {
       return res

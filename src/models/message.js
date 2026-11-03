@@ -26,11 +26,13 @@ const messageSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    versionKey: false,
   }
 );
 
-// The conversation timeline is always read newest-first and reversed in the API.
-messageSchema.index({ connectionId: 1, createdAt: -1 });
+// The conversation timeline is read newest-first, with _id as a stable
+// tiebreaker for messages created in the same millisecond.
+messageSchema.index({ connectionId: 1, createdAt: -1, _id: -1 });
 
 // Unread counts and "mark as read" filter by conversation, sender and readAt.
 messageSchema.index({ connectionId: 1, senderId: 1, readAt: 1 });

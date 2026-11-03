@@ -5,6 +5,7 @@ const { toHttpError, HttpError } = require("../src/utils/errors");
 const { toPublicUser } = require("../src/utils/publicUser");
 const { setAuthCookie, clearAuthCookie } = require("../src/utils/cookie");
 const User = require("../src/models/user");
+const ConnectionRequest = require("../src/models/connectionRequest");
 
 let passed = 0;
 const ok = (name, fn) => {
@@ -39,6 +40,21 @@ ok("signup: 73-char password rejected", () => {
 
 ok("signup: object password rejected", () => {
   assert.throws(() => validateSignupData({ ...goodSignup, password: { $ne: 1 } }), /at least 8/);
+});
+
+ok("signup: null body rejected as invalid JSON body", () => {
+  assert.throws(() => validateSignupData(null), /JSON object/);
+});
+
+ok("signup: password is capped at 72 bytes, not 72 characters", () => {
+  // 18 emoji = 72 UTF-8 bytes, 19 emoji = 76 bytes.
+  assert.doesNotThrow(() =>
+    validateSignupData({ ...goodSignup, password: "😀".repeat(18) })
+  );
+  assert.throws(
+    () => validateSignupData({ ...goodSignup, password: "😀".repeat(19) }),
+    /72 bytes/
+  );
 });
 
 // --- profile edit validation ------------------------------------------------
@@ -89,6 +105,10 @@ ok("profile: non-array skills rejected", () => {
   assert.throws(() => validateEditProfileData({ skill: "React" }), /list of strings/);
 });
 
+ok("profile: clearing the last name is rejected", () => {
+  assert.throws(() => validateEditProfileData({ lastName: "   " }), /Last name is required/);
+});
+
 // --- error mapping ----------------------------------------------------------
 ok("errors: HttpError keeps status and message", () => {
   const e = toHttpError(new HttpError(403, "nope"));
@@ -127,6 +147,19 @@ ok("errors: status 503 preserved without leaking message", () => {
   assert.ok(!/secret/.test(e.message));
 });
 
+ok("errors: duplicate pairKey -> friendly 409", () => {
+  const e = toHttpError({ code: 11000, keyPattern: { pairKey: 1 } });
+  assert.strictEqual(e.status, 409);
+  assert.ok(/already exists/.test(e.message));
+  assert.ok(!/pairKey/.test(e.message));
+});
+
+ok("errors: oversized body -> 413", () => {
+  const e = toHttpError({ type: "entity.too.large", status: 413 });
+  assert.strictEqual(e.status, 413);
+  assert.strictEqual(e.message, "Request body is too large.");
+});
+
 // --- public user ------------------------------------------------------------
 ok("publicUser: password hash never serialised", () => {
   const pub = toPublicUser({
@@ -143,6 +176,20 @@ ok("publicUser: password hash never serialised", () => {
 
 ok("user schema: password is select:false", () => {
   assert.strictEqual(User.schema.path("password").options.select, false);
+});
+
+ok("user schema: lastName is required", () => {
+  assert.strictEqual(User.schema.path("lastName").isRequired, true);
+});
+
+ok("connection schema: pairKey has a unique sparse index", () => {
+  const pairIndex = ConnectionRequest.schema
+    .indexes()
+    .find(([keys]) => keys.pairKey === 1);
+
+  assert.ok(pairIndex, "pairKey index is missing");
+  assert.strictEqual(pairIndex[1].unique, true);
+  assert.strictEqual(pairIndex[1].sparse, true);
 });
 
 ok("user schema: toJSON strips password", () => {
@@ -202,6 +249,31 @@ process.env.JWT_SECRET = "unit-test-secret";
     passed++;
   } catch (e) {
     console.log("FAIL  jwt: sign + verify round trip — " + e.message);
+    process.exitCode = 1;
+  }
+
+  try {
+    const a = new mongoose.Types.ObjectId();
+    const b = new mongoose.Types.ObjectId();
+    const forward = new ConnectionRequest({
+      fromUserId: a,
+      toUserId: b,
+      status: "interested",
+    });
+    const reverse = new ConnectionRequest({
+      fromUserId: b,
+      toUserId: a,
+      status: "interested",
+    });
+
+    await forward.validate();
+    await reverse.validate();
+
+    assert.strictEqual(forward.pairKey, reverse.pairKey);
+    console.log("PASS  connection pairKey is direction independent");
+    passed++;
+  } catch (e) {
+    console.log("FAIL  connection pairKey is direction independent — " + e.message);
     process.exitCode = 1;
   }
 

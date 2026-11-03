@@ -8,6 +8,10 @@ const ConnectionRequest = require("../models/connectionRequest");
 const USER_SAFE_DATA =
   "firstName lastName age gender about skill profilePhoto createdAt";
 
+// Keep skips bounded so a crafted page number cannot make MongoDB scan an
+// arbitrarily large number of documents.
+const MAX_PAGE = 1000;
+
 userRouter.get("/user/requests/received", userAuth, async (req, res, next) => {
   try {
     const loggedInUser = req.user;
@@ -16,12 +20,17 @@ userRouter.get("/user/requests/received", userAuth, async (req, res, next) => {
       toUserId: loggedInUser._id,
       status: "interested",
     })
+      .select("-__v")
       .populate("fromUserId", USER_SAFE_DATA)
       .lean();
 
+    // Drop requests whose sender no longer exists rather than returning a
+    // populated field that is null.
+    const data = connectionRequests.filter((row) => row.fromUserId);
+
     res.json({
       message: "Received connection requests",
-      data: connectionRequests,
+      data,
     });
   } catch (err) {
     next(err);
@@ -38,6 +47,7 @@ userRouter.get("/user/connection", userAuth, async (req, res, next) => {
         { fromUserId: loggedInUser._id, status: "accepted" },
       ],
     })
+      .select("-__v")
       .populate("fromUserId", USER_SAFE_DATA)
       .populate("toUserId", USER_SAFE_DATA)
       .lean();
@@ -64,7 +74,10 @@ userRouter.get("/feed", userAuth, async (req, res, next) => {
   try {
     const loggedInUser = req.user;
 
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const page = Math.min(
+      MAX_PAGE,
+      Math.max(1, parseInt(req.query.page, 10) || 1)
+    );
     const requestedLimit = parseInt(req.query.limit, 10) || 10;
     const limit = Math.min(50, Math.max(1, requestedLimit));
 

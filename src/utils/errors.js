@@ -38,6 +38,13 @@ const toHttpError = (err) => {
       );
     }
 
+    if (field === "pairKey") {
+      return new HttpError(
+        409,
+        "A connection request already exists between you and this developer."
+      );
+    }
+
     return new HttpError(
       409,
       field ? `That ${field} is already in use.` : "That value is already in use."
@@ -59,6 +66,10 @@ const toHttpError = (err) => {
 
   if (err?.type === "entity.parse.failed") {
     return new HttpError(400, "Request body must be valid JSON.");
+  }
+
+  if (err?.type === "entity.too.large") {
+    return new HttpError(413, "Request body is too large.");
   }
 
   const status = Number(err?.status || err?.statusCode);
