@@ -37,9 +37,12 @@ function parsePaging(query) {
 
 // GET /user/messages/:userId?page=1&limit=30
 // Returns the newest page, oldest-first, so the client can append directly.
-messageRouter.get("/user/messages/:userId", userAuth, async (req, res) => {
+messageRouter.get("/user/messages/:userId", userAuth, async (req, res, next) => {
   try {
-    const connection = await findAcceptedConnection(req.params.userId, req.user._id);
+    const connection = await findAcceptedConnection(
+      req.params.userId,
+      req.user._id
+    );
 
     if (!connection) {
       return res.status(404).json({
@@ -60,14 +63,17 @@ messageRouter.get("/user/messages/:userId", userAuth, async (req, res) => {
 
     res.json({ data, page, limit, hasMore });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /user/messages/:userId  { text }
-messageRouter.post("/user/messages/:userId", userAuth, async (req, res) => {
+messageRouter.post("/user/messages/:userId", userAuth, async (req, res, next) => {
   try {
-    const connection = await findAcceptedConnection(req.params.userId, req.user._id);
+    const connection = await findAcceptedConnection(
+      req.params.userId,
+      req.user._id
+    );
 
     if (!connection) {
       return res.status(404).json({
@@ -95,7 +101,7 @@ messageRouter.post("/user/messages/:userId", userAuth, async (req, res) => {
 
     res.status(201).json({ data: message });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 });
 
@@ -104,7 +110,7 @@ messageRouter.post("/user/messages/:userId", userAuth, async (req, res) => {
 messageRouter.post(
   "/user/messages/:userId/read",
   userAuth,
-  async (req, res) => {
+  async (req, res, next) => {
     try {
       const connection = await findAcceptedConnection(
         req.params.userId,
@@ -128,13 +134,13 @@ messageRouter.post(
 
       res.json({ updated: result.modifiedCount ?? 0 });
     } catch (err) {
-      res.status(400).json({ message: err.message });
+      next(err);
     }
   }
 );
 
 // GET /user/messages -> total unread messages across every conversation.
-messageRouter.get("/user/messages", userAuth, async (req, res) => {
+messageRouter.get("/user/messages", userAuth, async (req, res, next) => {
   try {
     const connectionIds = (
       await ConnectionRequest.find({
@@ -158,7 +164,7 @@ messageRouter.get("/user/messages", userAuth, async (req, res) => {
 
     res.json({ unread });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    next(err);
   }
 });
 

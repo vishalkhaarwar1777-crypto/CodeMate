@@ -1,40 +1,39 @@
 const express = require("express");
+const bcrypt = require("bcrypt");
 const authRouter = express.Router();
 const { validateSignupData } = require("../utils/validation");
 const User = require("../models/user");
-const bcrypt = require("bcrypt");
 const { setAuthCookie, clearAuthCookie } = require("../utils/cookie");
 const { toPublicUser } = require("../utils/publicUser");
 
-authRouter.post("/signup", async (req, res) => {
+authRouter.post("/signup", async (req, res, next) => {
   try {
-    validateSignupData(req);
+    validateSignupData(req.body);
 
-    const { firstName, lastName, emailId, password } = req.body;
+    const { firstName, lastName } = req.body;
+    const emailId = req.body.emailId.trim().toLowerCase();
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = new User({
-      firstName,
-      lastName,
+    const user = await User.create({
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       emailId,
       password: hashedPassword,
     });
 
-    await user.save();
-
+    // The frontend signs in immediately after creating the account, so no
+    // cookie is set here.
     res.status(201).json({
       message: "User added successfully",
       user: toPublicUser(user),
     });
   } catch (err) {
-    res.status(400).json({
-      error: err.message,
-    });
+    // Duplicate emails become 409 Conflict; validation errors become 400.
+    next(err);
   }
 });
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", async (req, res, next) => {
   try {
     const emailId =
       typeof req.body.emailId === "string"
@@ -49,7 +48,9 @@ authRouter.post("/login", async (req, res) => {
         .json({ message: "Email and password are required." });
     }
 
-    const user = await User.findOne({ emailId });
+    // `password` is select:false on the schema, so opt back in for the
+    // comparison only.
+    const user = await User.findOne({ emailId }).select("+password");
 
     if (!user) {
       return res.status(401).json({ message: "Invalid email or password." });
@@ -70,10 +71,7 @@ authRouter.post("/login", async (req, res) => {
       user: toPublicUser(user),
     });
   } catch (err) {
-    console.error("Login failed:", err.message);
-    return res
-      .status(500)
-      .json({ message: "Could not sign you in. Please try again." });
+    return next(err);
   }
 });
 

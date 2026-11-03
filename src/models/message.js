@@ -7,7 +7,6 @@ const messageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "ConnectionRequest",
       required: true,
-      index: true,
     },
     senderId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -32,5 +31,8 @@ const messageSchema = new mongoose.Schema(
 
 // The conversation timeline is always read newest-first and reversed in the API.
 messageSchema.index({ connectionId: 1, createdAt: -1 });
+
+// Unread counts and "mark as read" filter by conversation, sender and readAt.
+messageSchema.index({ connectionId: 1, senderId: 1, readAt: 1 });
 
 module.exports = mongoose.model("Message", messageSchema);

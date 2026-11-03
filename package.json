@@ -5,10 +5,15 @@
   "license": "ISC",
   "author": "Vishal Kharwar",
   "type": "commonjs",
-  "main": "index.js",
+  "main": "src/app.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "dev": "nodemon src/app.js",
+    "test": "node tests/unit.test.js",
+    "test:smoke": "node tests/smoke.mjs"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

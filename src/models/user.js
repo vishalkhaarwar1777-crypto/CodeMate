@@ -8,12 +8,15 @@ const userSchema = new mongoose.Schema(
     firstName: {
       type: String,
       required: true,
+      trim: true,
       minlength: 4,
       maxlength: 50,
     },
 
     lastName: {
       type: String,
+      trim: true,
+      maxlength: 50,
     },
 
     emailId: {
@@ -43,11 +46,16 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: true,
+      // Never load the hash by default. Login opts back in with
+      // .select("+password"), and /profile/edit does too because Mongoose
+      // validates required paths when saving a loaded document.
+      select: false,
     },
 
     about: {
       type: String,
       default: "Hey! I am here to use DevTinder.",
+      maxlength: 1000,
     },
 
     profilePhoto: {
@@ -69,6 +77,18 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// The feed sorts by newest profiles; this index keeps that sort cheap.
+userSchema.index({ createdAt: -1, _id: -1 });
+
+// Defence in depth: even if a document is serialised directly, the hash is
+// removed. API responses should still go through toPublicUser().
+userSchema.set("toJSON", {
+  transform: (_doc, ret) => {
+    delete ret.password;
+    return ret;
+  },
+});
 
 userSchema.methods.getJWT = async function () {
   const secret = process.env.JWT_SECRET;

@@ -1,12 +1,13 @@
-
 const dns = require("dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 const express = require("express");
-const connectDB = require("./config/database");
+const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
-require("dotenv").config();
+const connectDB = require("./config/database");
+const { createHttpError, toHttpError } = require("./utils/errors");
+require("dotenv").config({ quiet: true });
 
 // Check required environment variables
 const requiredEnvVars = ["MONGODB_URI", "JWT_SECRET"];
@@ -25,10 +26,10 @@ if (missingEnvVars.length > 0) {
 const app = express();
 
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
 
 // Normalize frontend URLs
-const normalizeOrigin = (value) =>
-  value.trim().replace(/\/+$/, "");
+const normalizeOrigin = (value) => value.trim().replace(/\/+$/, "");
 
 // Allowed frontend origins
 const allowedOrigins = [
@@ -47,8 +48,8 @@ app.use(
         return callback(null, true);
       }
 
-      console.error("Blocked CORS origin:", origin);
-      return callback(new Error("Origin not allowed by CORS"));
+      // Reject with a client error (403) instead of a generic 500.
+      return callback(createHttpError(403, "Origin not allowed by CORS."));
     },
     credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -58,7 +59,7 @@ app.use(
 );
 
 // Middlewares
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
 
 // Backend health check
@@ -88,28 +89,49 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
 
-  const status = Number(err.status || err.statusCode) || 500;
+  const error = toHttpError(err);
 
-  if (status >= 500) {
-    console.error("API error:", err.message);
+  if (error.status >= 500) {
+    // Log the original error (with stack) for Render logs, but never send it.
+    console.error("API error:", err);
   }
 
-  res.status(status).json({
-    message:
-      status >= 500
-        ? "Something went wrong on the server."
-        : err.message || "Invalid request.",
+  res.status(error.status).json({ message: error.message });
+});
+
+const startServer = () => {
+  const server = app.listen(process.env.PORT || 3000, () => {
+    console.log("Server is successfully listening");
   });
+
+  // Render sends SIGTERM on redeploy. Close connections instead of being
+  // killed mid-request.
+  const shutdown = (signal) => {
+    console.log(`${signal} received, shutting down...`);
+
+    server.close(() => {
+      mongoose.connection.close(false).finally(() => process.exit(0));
+    });
+
+    // Do not hang forever if a connection refuses to close.
+    setTimeout(() => process.exit(1), 10000).unref();
+  };
+
+  process.once("SIGTERM", () => shutdown("SIGTERM"));
+  process.once("SIGINT", () => shutdown("SIGINT"));
+
+  return server;
+};
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
 });
 
 // Connect database and start server
 connectDB()
   .then(() => {
     console.log("Database connection is established...");
-
-    app.listen(process.env.PORT || 3000, () => {
-      console.log("Server is successfully listening");
-    });
+    startServer();
   })
   .catch((err) => {
     console.error("Database cannot be connected:", err.message);

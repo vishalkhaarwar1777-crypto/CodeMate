@@ -8,25 +8,27 @@ const ConnectionRequest = require("../models/connectionRequest");
 const USER_SAFE_DATA =
   "firstName lastName age gender about skill profilePhoto createdAt";
 
-userRouter.get("/user/requests/received", userAuth, async (req, res) => {
+userRouter.get("/user/requests/received", userAuth, async (req, res, next) => {
   try {
     const loggedInUser = req.user;
 
     const connectionRequests = await ConnectionRequest.find({
       toUserId: loggedInUser._id,
       status: "interested",
-    }).populate("fromUserId", USER_SAFE_DATA);
+    })
+      .populate("fromUserId", USER_SAFE_DATA)
+      .lean();
 
     res.json({
       message: "Received connection requests",
       data: connectionRequests,
     });
   } catch (err) {
-    res.status(500).json({ message: "Could not load connection requests." });
+    next(err);
   }
 });
 
-userRouter.get("/user/connection", userAuth, async (req, res) => {
+userRouter.get("/user/connection", userAuth, async (req, res, next) => {
   try {
     const loggedInUser = req.user;
 
@@ -37,7 +39,8 @@ userRouter.get("/user/connection", userAuth, async (req, res) => {
       ],
     })
       .populate("fromUserId", USER_SAFE_DATA)
-      .populate("toUserId", USER_SAFE_DATA);
+      .populate("toUserId", USER_SAFE_DATA)
+      .lean();
 
     const data = connectionRequests
       .map((row) => {
@@ -53,11 +56,11 @@ userRouter.get("/user/connection", userAuth, async (req, res) => {
 
     res.json({ data });
   } catch (err) {
-    res.status(500).json({ message: "Could not load your connections." });
+    next(err);
   }
 });
 
-userRouter.get("/feed", userAuth, async (req, res) => {
+userRouter.get("/feed", userAuth, async (req, res, next) => {
   try {
     const loggedInUser = req.user;
 
@@ -68,10 +71,7 @@ userRouter.get("/feed", userAuth, async (req, res) => {
     // Every request in either direction (sent or received, any status) means
     // the two people already interacted, so hide those profiles.
     const connectionRequests = await ConnectionRequest.find({
-      $or: [
-        { fromUserId: loggedInUser._id },
-        { toUserId: loggedInUser._id },
-      ],
+      $or: [{ fromUserId: loggedInUser._id }, { toUserId: loggedInUser._id }],
     })
       .select("fromUserId toUserId")
       .lean();
@@ -96,7 +96,7 @@ userRouter.get("/feed", userAuth, async (req, res) => {
     // An empty feed is a valid result: respond with [] and HTTP 200.
     return res.json(users);
   } catch (err) {
-    return res.status(500).json({ message: "Could not load the feed." });
+    return next(err);
   }
 });
 
