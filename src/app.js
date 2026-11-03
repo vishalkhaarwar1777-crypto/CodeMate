@@ -1,3 +1,4 @@
+
 const dns = require("dns");
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
@@ -7,6 +8,7 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 require("dotenv").config();
 
+// Check required environment variables
 const requiredEnvVars = ["MONGODB_URI", "JWT_SECRET"];
 
 const missingEnvVars = requiredEnvVars.filter(
@@ -15,7 +17,7 @@ const missingEnvVars = requiredEnvVars.filter(
 
 if (missingEnvVars.length > 0) {
   console.error(
-    `Missing required environment variables: ${missingEnvVars.join(", ")}.`
+    `Missing required environment variables: ${missingEnvVars.join(", ")}`
   );
   process.exit(1);
 }
@@ -24,9 +26,11 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-// Allowed frontend origins
-const normalizeOrigin = (value) => value.trim().replace(/\/+$/, "");
+// Normalize frontend URLs
+const normalizeOrigin = (value) =>
+  value.trim().replace(/\/+$/, "");
 
+// Allowed frontend origins
 const allowedOrigins = [
   "http://localhost:5173",
   "https://codemates-connect.vercel.app",
