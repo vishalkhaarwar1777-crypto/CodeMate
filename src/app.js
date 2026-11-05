@@ -35,17 +35,40 @@ const normalizeOrigin = (value) => value.trim().replace(/\/+$/, "");
 // FRONTEND_URL (comma separated) instead of hardcoding preview URLs here.
 const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:5173",
+  // Vite uses the next free port when 5173 is already taken.
+  "http://localhost:5174",
   "https://codemates-connect.vercel.app",
+  // The preview deployment URL used while testing this project.
+  "https://codemates-k4buyidm8-code-mates1.vercel.app",
 ];
+
+// Vercel creates hostnames for this project's default production alias and for
+// every preview deployment, for example:
+//   codemates-code-mates1.vercel.app              (default alias)
+//   codemates-git-main-code-mates1.vercel.app     (branch preview)
+//   codemates-k4buyidm8-code-mates1.vercel.app    (deployment preview)
+// Allow those hostnames for this project only; arbitrary *.vercel.app sites are
+// still rejected.
+const VERCEL_PROJECT_ORIGIN_PATTERN =
+  /^https:\/\/codemates(?:-[a-z0-9-]+)?-code-mates1\.vercel\.app$/;
 
 // Allowed frontend origins
 const allowedOrigins = [
   ...new Set(
     [...DEFAULT_ALLOWED_ORIGINS, ...(process.env.FRONTEND_URL || "").split(",")]
+      .map((value) => normalizeOrigin(value || ""))
       .filter(Boolean)
-      .map(normalizeOrigin)
   ),
 ];
+
+const isAllowedOrigin = (origin) => {
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  return (
+    allowedOrigins.includes(normalizedOrigin) ||
+    VERCEL_PROJECT_ORIGIN_PATTERN.test(normalizedOrigin)
+  );
+};
 
 // Security headers (HSTS, nosniff, frame options, referrer policy, ...)
 app.use(helmet());
@@ -54,7 +77,7 @@ app.use(helmet());
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(normalizeOrigin(origin))) {
+      if (!origin || isAllowedOrigin(origin)) {
         return callback(null, true);
       }
 

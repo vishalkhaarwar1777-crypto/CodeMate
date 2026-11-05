@@ -152,6 +152,23 @@ check("preflight localhost -> 204", r.status === 204);
 
 r = await req("/login", {
   method: "OPTIONS",
+  headers: {
+    Origin: "https://codemates-k4buyidm8-code-mates1.vercel.app",
+    "Access-Control-Request-Method": "PATCH",
+    "Access-Control-Request-Headers": "content-type",
+  },
+});
+check(
+  "preflight preview deployment -> 204 + credentials",
+  r.status === 204 &&
+    r.headers.get("access-control-allow-origin") ===
+      "https://codemates-k4buyidm8-code-mates1.vercel.app" &&
+    r.headers.get("access-control-allow-credentials") === "true",
+  `${r.status} allow-origin=${r.headers.get("access-control-allow-origin")}`
+);
+
+r = await req("/login", {
+  method: "OPTIONS",
   headers: { Origin: "https://evil.example", "Access-Control-Request-Method": "POST" },
 });
 check(

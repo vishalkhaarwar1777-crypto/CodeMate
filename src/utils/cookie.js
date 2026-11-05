@@ -33,6 +33,12 @@ const getCookieOptions = (req, { withMaxAge = false } = {}) => {
     path: "/",
   };
 
+  // Chrome's third-party cookie restrictions can block a cross-site cookie
+  // even when SameSite=None. A partitioned cookie (CHIPS) is stored per
+  // top-level site and is the supported way to keep this API's cookie working
+  // from the Vercel frontend. Browsers that do not support it ignore the flag.
+  if (useCrossSiteCookie) options.partitioned = true;
+
   if (withMaxAge) options.maxAge = ONE_DAY_MS;
 
   return options;

@@ -116,7 +116,11 @@ const validateEditProfileData = (body) => {
   const updates = {};
 
   if ("firstName" in body) {
-    const firstName = asTrimmedString(body.firstName);
+    if (typeof body.firstName !== "string") {
+      throw createHttpError(400, "First name must be text.");
+    }
+
+    const firstName = body.firstName.trim();
 
     if (firstName.length < FIRST_NAME_MIN || firstName.length > FIRST_NAME_MAX) {
       throw createHttpError(
@@ -150,24 +154,38 @@ const validateEditProfileData = (body) => {
   }
 
   if ("age" in body) {
-    const age = Number(body.age);
+    // Optional fields are often sent as an empty string when the form input is
+    // blank. Treat that (and null/undefined) as "leave the value unchanged"
+    // instead of failing the whole edit.
+    if (body.age !== "" && body.age !== null && body.age !== undefined) {
+      const age = Number(body.age);
 
-    if (!Number.isInteger(age) || age < 18 || age > 120) {
-      throw createHttpError(400, "Age must be a whole number between 18 and 120.");
+      if (!Number.isInteger(age) || age < 18 || age > 120) {
+        throw createHttpError(
+          400,
+          "Age must be a whole number between 18 and 120."
+        );
+      }
+
+      updates.age = age;
     }
-
-    updates.age = age;
   }
 
   if ("gender" in body) {
-    if (!GENDERS.includes(body.gender)) {
-      throw createHttpError(
-        400,
-        `Gender must be one of: ${GENDERS.join(", ")}.`
-      );
-    }
+    if (
+      body.gender !== "" &&
+      body.gender !== null &&
+      body.gender !== undefined
+    ) {
+      if (!GENDERS.includes(body.gender)) {
+        throw createHttpError(
+          400,
+          `Gender must be one of: ${GENDERS.join(", ")}.`
+        );
+      }
 
-    updates.gender = body.gender;
+      updates.gender = body.gender;
+    }
   }
 
   if ("about" in body) {

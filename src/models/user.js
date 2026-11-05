@@ -103,7 +103,18 @@ userSchema.methods.getJWT = async function () {
 };
 
 userSchema.methods.isvalidPassword = async function (passwordInputByUser) {
-  return bcrypt.compare(passwordInputByUser, this.password);
+  // Accounts created by very old versions of the app may not have a hash, and a
+  // corrupted hash makes bcrypt throw. Treat both as "wrong password" (401)
+  // instead of letting them become a 500 server error.
+  if (typeof this.password !== "string" || !this.password) {
+    return false;
+  }
+
+  try {
+    return await bcrypt.compare(passwordInputByUser, this.password);
+  } catch {
+    return false;
+  }
 };
 
 module.exports = mongoose.model("user", userSchema);

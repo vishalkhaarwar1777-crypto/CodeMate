@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const User = require("../models/user");
 
 const userAuth = async (req, res, next) => {
-  const { token } = req.cookies;
+  const token = req.cookies?.token;
 
   if (!token) {
     return res.status(401).json({ message: "Please login!" });
@@ -16,7 +16,11 @@ const userAuth = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Pin the algorithm: this app only ever issues HS256 tokens. Without this,
+    // a token could try to choose a different algorithm during verification.
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
 
     if (!decoded?._id || !mongoose.Types.ObjectId.isValid(decoded._id)) {
       return res
@@ -41,7 +45,7 @@ const userAuth = async (req, res, next) => {
         .json({ message: "Your session has expired. Please login again." });
     }
 
-    if (err.name === "JsonWebTokenError") {
+    if (err.name === "JsonWebTokenError" || err.name === "NotBeforeError") {
       return res
         .status(401)
         .json({ message: "Invalid session. Please login again." });

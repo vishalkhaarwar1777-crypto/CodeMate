@@ -6,8 +6,8 @@ checklist for the authenticated flows.
 ## 1. Automated (run these first)
 
 ```bash
-npm test          # 36 unit checks: validation, error mapping, cookies, JWT, schemas
-npm run test:smoke  # 29 HTTP checks against a running server (read-only)
+npm test          # 38 unit checks: validation, error mapping, cookies, JWT, schemas
+npm run test:smoke  # 30 HTTP checks against a running server (read-only)
 ```
 
 `test:smoke` expects the API on `http://localhost:3000`. Point it elsewhere with:
@@ -53,7 +53,7 @@ curl.exe -i -c cookies.txt -X POST http://localhost:3000/login `
 
 - [ ] `200` and `user` without `password`
 - [ ] `Set-Cookie: token=...; HttpOnly; Path=/; SameSite=Lax` locally
-- [ ] On Render (`NODE_ENV=production` or `RENDER=true`): `Secure; SameSite=None`
+- [ ] On Render (`NODE_ENV=production` or `RENDER=true`): `Secure; SameSite=None; Partitioned`
 - [ ] Wrong password and unknown email both return `401` with the same message
 - [ ] A request with no body or a `text/plain` body returns `400`, never `500`
 - [ ] More than 30 login/signup attempts in 15 minutes returns `429`

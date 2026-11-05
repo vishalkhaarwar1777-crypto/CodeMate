@@ -23,7 +23,7 @@ Fill in the values in `.env`:
 | `MONGODB_URI`  | yes      | MongoDB connection string                                          |
 | `JWT_SECRET`   | yes      | Long random secret used to sign auth tokens                        |
 | `PORT`         | no       | HTTP port (default `3000`)                                         |
-| `FRONTEND_URL` | no       | Comma-separated CORS origins (defaults include `localhost:5173`)   |
+| `FRONTEND_URL` | no       | Comma-separated CORS origins (defaults include `localhost:5173`, the stable Vercel alias, and this project's Vercel previews) |
 | `NODE_ENV`     | no       | Set to `production` on a deployed server                           |
 | `DNS_SERVERS`  | no       | Optional comma-separated resolvers if system DNS cannot reach Atlas |
 

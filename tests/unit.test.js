@@ -6,6 +6,7 @@ const { toPublicUser } = require("../src/utils/publicUser");
 const { setAuthCookie, clearAuthCookie } = require("../src/utils/cookie");
 const User = require("../src/models/user");
 const ConnectionRequest = require("../src/models/connectionRequest");
+const { userAuth } = require("../src/middleware/auth");
 
 let passed = 0;
 const ok = (name, fn) => {
@@ -87,6 +88,16 @@ ok("profile: age 17 rejected", () => {
 
 ok("profile: age as numeric string accepted", () => {
   assert.strictEqual(validateEditProfileData({ age: "24" }).age, 24);
+});
+
+ok("profile: blank optional age/gender are ignored", () => {
+  assert.deepStrictEqual(validateEditProfileData({ age: "" }), {});
+  assert.deepStrictEqual(validateEditProfileData({ gender: "" }), {});
+  assert.deepStrictEqual(validateEditProfileData({ age: null, gender: null }), {});
+});
+
+ok("profile: non-string first name rejected", () => {
+  assert.throws(() => validateEditProfileData({ firstName: 1234 }), /must be text/);
 });
 
 ok("profile: unknown gender rejected", () => {
@@ -216,15 +227,17 @@ ok("cookie: local HTTP uses lax and not secure", () => {
   assert.strictEqual(bucket[0].options.sameSite, "lax");
   assert.strictEqual(bucket[0].options.secure, false);
   assert.strictEqual(bucket[0].options.httpOnly, true);
+  assert.strictEqual(bucket[0].options.partitioned, undefined);
   assert.strictEqual(bucket[0].options.maxAge, 24 * 60 * 60 * 1000);
 });
 
-ok("cookie: production uses none + secure", () => {
+ok("cookie: production uses none + secure + partitioned", () => {
   const bucket = [];
   process.env.NODE_ENV = "production";
   setAuthCookie(fakeRes(bucket), { headers: {}, secure: true }, "tok");
   assert.strictEqual(bucket[0].options.sameSite, "none");
   assert.strictEqual(bucket[0].options.secure, true);
+  assert.strictEqual(bucket[0].options.partitioned, true);
 });
 
 ok("cookie: clearing matches creation attributes", () => {
@@ -233,22 +246,98 @@ ok("cookie: clearing matches creation attributes", () => {
   clearAuthCookie(fakeRes(bucket), { headers: {}, secure: true });
   assert.strictEqual(bucket[0].options.sameSite, "none");
   assert.strictEqual(bucket[0].options.secure, true);
+  assert.strictEqual(bucket[0].options.partitioned, true);
 });
 
 // --- JWT --------------------------------------------------------------------
 process.env.JWT_SECRET = "unit-test-secret";
+const jwt = require("jsonwebtoken");
+
+const fakeAuthResponse = () => {
+  const res = {};
+  res.status = (code) => {
+    res.statusCode = code;
+    return res;
+  };
+  res.json = (body) => {
+    res.body = body;
+    return res;
+  };
+  return res;
+};
+
+const expectUnauthorized = async (token) => {
+  const req = { cookies: { token } };
+  const res = fakeAuthResponse();
+  let nextCalled = false;
+
+  await userAuth(req, res, () => {
+    nextCalled = true;
+  });
+
+  assert.strictEqual(res.statusCode, 401);
+  assert.strictEqual(nextCalled, false);
+};
 
 (async () => {
   try {
     const doc = User.hydrate({ _id: new mongoose.Types.ObjectId(), firstName: "Test" });
     const token = await doc.getJWT();
-    const decoded = require("jsonwebtoken").verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
 
     assert.strictEqual(decoded._id, doc._id.toString());
     console.log("PASS  jwt: sign + verify round trip");
     passed++;
   } catch (e) {
     console.log("FAIL  jwt: sign + verify round trip — " + e.message);
+    process.exitCode = 1;
+  }
+
+  try {
+    // A token signed with a different algorithm must not be accepted, even when
+    // the signature itself is valid for the configured secret.
+    const token = jwt.sign(
+      { _id: new mongoose.Types.ObjectId().toString() },
+      process.env.JWT_SECRET,
+      { algorithm: "HS384", expiresIn: "1h" }
+    );
+    await expectUnauthorized(token);
+    console.log("PASS  jwt: non-HS256 token rejected by middleware");
+    passed++;
+  } catch (e) {
+    console.log("FAIL  jwt: non-HS256 token rejected by middleware — " + e.message);
+    process.exitCode = 1;
+  }
+
+  try {
+    await expectUnauthorized("not-a-jwt");
+    console.log("PASS  jwt: malformed token rejected by middleware");
+    passed++;
+  } catch (e) {
+    console.log("FAIL  jwt: malformed token rejected by middleware — " + e.message);
+    process.exitCode = 1;
+  }
+
+  try {
+    const withoutHash = User.hydrate({
+      _id: new mongoose.Types.ObjectId(),
+      firstName: "Legacy",
+    });
+    assert.strictEqual(await withoutHash.isvalidPassword("whatever"), false);
+
+    const corruptHash = User.hydrate({
+      _id: new mongoose.Types.ObjectId(),
+      firstName: "Legacy",
+      password: "not-a-bcrypt-hash",
+    });
+    assert.strictEqual(await corruptHash.isvalidPassword("whatever"), false);
+
+    console.log("PASS  password: missing/corrupt hash returns false (401, not 500)");
+    passed++;
+  } catch (e) {
+    console.log("FAIL  password: missing/corrupt hash returns false — " + e.message);
     process.exitCode = 1;
   }
 

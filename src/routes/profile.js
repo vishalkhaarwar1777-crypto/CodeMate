@@ -17,10 +17,16 @@ profileRouter.patch("/profile/edit", userAuth, async (req, res, next) => {
     // Validates the allow-list and field types, and returns trimmed values.
     const updates = validateEditProfileData(req.body);
 
-    // `password` is select:false on the schema, but Mongoose validates required
-    // paths when saving. Re-select it so the update can be saved; it is still
-    // never serialised into the response.
-    const user = await User.findById(req.user._id).select("+password");
+    if (Object.keys(updates).length === 0) {
+      throw createHttpError(400, "No profile changes were provided.");
+    }
+
+    // Load the current document, apply only the allow-listed fields, and save.
+    // `validateModifiedOnly` is important for accounts created by older
+    // versions of the app: Mongoose would otherwise re-validate every field on
+    // the document and an unrelated legacy value could block this edit.
+    // It also means the password hash never has to be loaded for this route.
+    const user = await User.findById(req.user._id);
 
     if (!user) {
       throw createHttpError(
@@ -30,7 +36,7 @@ profileRouter.patch("/profile/edit", userAuth, async (req, res, next) => {
     }
 
     Object.assign(user, updates);
-    await user.save();
+    await user.save({ validateModifiedOnly: true });
 
     res.json({
       message: "Profile updated successfully!",

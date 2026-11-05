@@ -7,6 +7,12 @@ Public routes: `GET /` (health), `POST /signup`, `POST /login` and `POST /logout
 Every other route requires the HTTP-only `token` cookie set at login. Requests
 must be sent with credentials enabled.
 
+In production the cookie is `HttpOnly; Secure; SameSite=None; Partitioned`
+(the Vercel frontend and the Render API are different sites). CORS allows
+`http://localhost:5173`, `http://localhost:5174`, the stable Vercel alias, and
+this project's Vercel preview hostnames; add any other origin with the
+`FRONTEND_URL` environment variable (comma separated).
+
 `POST /login` and `POST /signup` are rate limited per IP (30 attempts per 15
 minutes).
 
